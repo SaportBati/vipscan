@@ -4163,6 +4163,65 @@ addEventHandler('onWindowMessage', function(msg, wparam, lparam)
     end
 end)
 
+-- Вспомогательные функции для main()
+local function vipToUtf8(s)
+    if not s or s == "" then return s end
+    local ok, converted = pcall(function() return u8(s) end)
+    return (ok and converted) or s
+end
+
+local function vipParsePunishmentsFile(content)
+    local result = {}
+    if not content then return result end
+    content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
+
+    for line in (content .. "\n"):gmatch("(.-)\n") do
+        if line ~= "" and line ~= "[PUNISHMENTS]" then
+            local name, ptype, time, reason = line:match("^(.-)	(.-)	(.-)	(.*)$")
+            if name and name ~= "" then
+                table.insert(result, {
+                    name = vipToUtf8(name),
+                    ptype = ptype,
+                    time = time,
+                    reason = vipToUtf8(reason),
+                })
+            end
+        end
+    end
+    return result
+end
+
+local function vipHandleVipCommand(param)
+    param = (param or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    local filter, notFound = param ~= "" and param or nil, false
+
+    if filter and filter:match("^%d+$") then
+        local requestedId = filter
+        local nick = vipFindNickById(requestedId)
+        if nick then
+            filter = nick
+        else
+            sampAddChatMessage(("[VIP]   id " .. requestedId .. "    ."), 0xFF0000)
+            notFound = true
+        end
+    end
+
+    if notFound then
+        return
+    end
+
+    vipCurrentFilter = filter
+    vipViewingFile = nil
+    vipLines = vipLoadLines(filter)
+    vipWindowOpen[0] = true
+
+    PUN.targetOverride = nil
+    PUN.windowOpen[0] = (filter ~= nil)
+    if PUN.windowOpen[0] then
+        vipRequestPunishHistory(filter)
+    end
+end
+
 function main()
     while not isSampAvailable() do wait(100) end
     vipSetupBadWords()
